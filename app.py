@@ -2,39 +2,81 @@ import streamlit as st
 import yt_dlp
 import os
 
-st.set_page_config(page_title="TikTok Downloader", page_icon="🎬")
+st.set_page_config(page_title="TikTok Downloader Pro", page_icon="🎬", layout="centered")
 
-st.title("🎬 TikTok Video Downloader")
-st.write("Paste a TikTok link and download the video")
+# --- Styling ---
+st.markdown("""
+<style>
+.stButton>button {
+    width: 100%;
+    border-radius: 10px;
+    height: 3em;
+    font-size: 16px;
+}
+</style>
+""", unsafe_allow_html=True)
 
-url = st.text_input("Enter TikTok URL")
+# --- Header ---
+st.title("🎬 TikTok Downloader Pro")
+st.caption("Fast • Clean • No Watermark (when possible)")
 
-if st.button("Download"):
-    if not url:
-        st.error("Please enter a URL")
+# --- Input ---
+urls_input = st.text_area(
+    "📌 Paste TikTok URLs (one per line)",
+    placeholder="https://www.tiktok.com/@user/video/...\nhttps://www.tiktok.com/@user/video/..."
+)
+
+download_btn = st.button("⬇️ Download Videos")
+
+# --- Function to get info ---
+def get_video_info(url):
+    ydl_opts = {'quiet': True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        return ydl.extract_info(url, download=False)
+
+# --- Download logic ---
+if download_btn:
+    urls = [u.strip() for u in urls_input.split("\n") if u.strip()]
+
+    if not urls:
+        st.error("❌ Please enter at least one URL")
     else:
-        st.info("Downloading...")
+        for url in urls:
+            st.divider()
+            st.write(f"🔗 {url}")
 
-        ydl_opts = {
-            'format': 'mp4/best',
-            'outtmpl': '%(title)s.%(ext)s',
-            'noplaylist': True,
-        }
+            try:
+                info = get_video_info(url)
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
+                # --- Show preview ---
+                st.image(info.get("thumbnail"), width=250)
+                st.write(f"**Title:** {info.get('title')}")
+                st.write(f"⏱ Duration: {info.get('duration')} sec")
 
-            st.success("Download complete!")
+                # --- Download ---
+                with st.spinner("Downloading..."):
+                    ydl_opts = {
+                        'format': 'mp4/best',
+                        'outtmpl': '%(title)s.%(ext)s',
+                        'noplaylist': True,
+                    }
 
-            with open(filename, "rb") as f:
-                st.download_button(
-                    label="📥 Download Video",
-                    data=f,
-                    file_name=os.path.basename(filename),
-                    mime="video/mp4"
-                )
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([url])
 
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
+                    filename = f"{info['title']}.mp4"
+
+                st.success("✅ Downloaded!")
+
+                # --- Download button ---
+                if os.path.exists(filename):
+                    with open(filename, "rb") as f:
+                        st.download_button(
+                            label="📥 Download Video",
+                            data=f,
+                            file_name=filename,
+                            mime="video/mp4"
+                        )
+
+            except Exception as e:
+                st.error(f"❌ Failed: {str(e)}")
